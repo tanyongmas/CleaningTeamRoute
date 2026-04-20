@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเส้นทางพนักงานกวาดขยะ - เทศบาลตำบลตันหยงมัส</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root { --primary-color: #2d6a4f; --secondary-color: #40916c; --accent-color: #95d5b2; --sidebar-width: 380px; }
+        body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background: #f0f2f1; }
+        /* --- Header Bar --- */
+        .main-header {
+            height: 75px; background: var(--primary-color); box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; position: fixed; top: 0; width: 100%; z-index: 1060;
+        }
+        .header-logo-group { display: flex; align-items: center; gap: 12px; flex: 1; }
+        .header-logo { height: 50px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+        
+        .header-text-container { display: flex; flex-direction: column; justify-content: center; color: white; }
+        .header-title-main { font-weight: 700; font-size: 1.1rem; line-height: 1.2; }
+        .header-title-sub { font-weight: 400; font-size: 0.85rem; opacity: 0.9; margin-top: 2px; }
+
+        .btn-admin-login { background-color: rgba(255,255,255,0.2); color: white; border: 1px solid white; transition: 0.3s; white-space: nowrap; }
+        .btn-admin-login:hover { background-color: white; color: var(--primary-color); }
+        #map { height: calc(100vh - 70px); width: 100%; margin-top: 70px; z-index: 1; }
+        
+        #sidebar { position: fixed; right: calc(var(--sidebar-width) * -1); top: 70px; width: var(--sidebar-width); height: calc(100% - 70px); background: white; z-index: 1055; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: -4px 0 15px rgba(0,0,0,0.15); overflow-y: auto; }
+        #sidebar.active { right: 0; }
+        /* --- Responsive (Mobile) --- */
+        @media (max-width: 768px) {
+            .main-header { padding: 0 15px; height: 70px; }
+            .header-logo { height: 40px; }
+            .header-logo-group { gap: 10px; }
+            
+            /* ปรับขนาดฟอนต์ให้พอดีมือถือ */
+            .header-title-main { 
+                font-size: 0.65rem; 
+                line-height: 1.3;
+                display: -webkit-box;
+                -webkit-line-clamp: 2; /* ถ้าจอมือถือเล็กมาก ให้ซ้อนได้เต็มที่ 2 บรรทัด */
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .header-title-sub { font-size: 0.5rem; }
+            
+            /* เปลี่ยนปุ่ม Admin ให้เหลือแค่ไอคอนกลมๆ */
+            .admin-btn-custom {
+                width: 38px; height: 38px; padding: 0 !important; 
+                display: flex; align-items: center; justify-content: center; 
+                border-radius: 50% !important; margin-left: 10px;
+            }
+            .admin-btn-text { display: none; /* ซ่อนข้อความในมือถือ */ }
+            
+            #sidebar { width: 100%; right: 0; left: 0; top: 100%; height: calc(100% - 70px); box-shadow: 0 -4px 15px rgba(0,0,0,0.15);}
+            #sidebar.active { top: 70px; }
+        }
+        
+        /* --- Sidebar Styling --- */
+        .sidebar-header { 
+            background: linear-gradient(135deg, #e9f5ee 0%, #c8e6c9 100%); 
+            padding: 25px 20px 30px; 
+            border-bottom: 4px solid var(--primary-color); 
+            text-align: center; 
+            position: relative;
+        }
+        .sidebar-body { 
+            background-color: #f4f6f8; /* พื้นหลังสีเทาอ่อนให้การ์ดดูนูนขึ้น */
+            padding: 20px; 
+            min-height: calc(100% - 280px);
+        }
+        /* Profile Details */
+        .profile-img { width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; }
+        .profile-placeholder { width: 130px; height: 130px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; background-color: #dee2e6; display: flex; align-items: center; justify-content: center; color: #adb5bd; }
+        .badge-position { background: white; color: #495057; border: 1px solid #dee2e6; padding: 6px 15px; border-radius: 20px; font-size: 0.85rem; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .route-badge { background: var(--secondary-color); color: white; padding: 6px 18px; border-radius: 20px; font-size: 0.85rem; display: inline-block; margin-bottom: 12px; font-weight: bold; }
+        /* Images inside cards */
+        .route-preview-img { width: 100%; border-radius: 8px; border: 1px solid #eee; object-fit: cover; }
+        .route-placeholder { width: 100%; height: 140px; border-radius: 8px; border: 2px dashed #ced4da; background-color: #f8f9fa; color: #adb5bd; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .btn-admin-login { background-color: rgba(255,255,255,0.2); color: white; border: 1px solid white; transition: 0.3s; }
+        .btn-admin-login:hover { background-color: white; color: var(--primary-color); }
+        .icon-box {
+            width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.9rem;
+        }
+        .bg-green { background: var(--secondary-color); }
+        .bg-orange { background: #f39c12; }
+        /* Info Cards */
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border: 1px solid #eaedf1;
+        }
+        .info-card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px dashed #e0e0e0;
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        /* Custom Tooltip Style */
+        .custom-tooltip {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+        .custom-tooltip .leaflet-tooltip-tip {
+            display: none; /* ซ่อนสามเหลี่ยมชี้ทิศทาง */
+        }
+        .tooltip-card {
+            background: rgba(255, 255, 255, 0.95); /* พื้นหลังขาวโปร่งแสงนิดๆ */
+            border-radius: 6px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            padding: 8px 12px;
+            border-left: 4px solid var(--primary-color); /* แถบสีเขียวด้านซ้าย */
+            max-width: 250px;
+            font-family: 'Sarabun', sans-serif;
+        }
+        .tooltip-line {
+            display: flex;
+            align-items: center;
+            white-space: nowrap; /* บังคับให้อยู่บรรทัดเดียว */
+        }
+        .tooltip-text {
+            overflow: hidden;
+            text-overflow: ellipsis; /* ถ้าข้อความยาวไปให้แสดงเป็น ... */
+            display: inline-block;
+            width: 100%;
+        }
+        /* --- Admin Menu Buttons --- */
+        .admin-menu-btn {
+            display: flex; align-items: center; justify-content: start;
+            padding: 12px 20px; margin-bottom: 10px; border-radius: 12px;
+            border: 1px solid #eaedf1; background: white; color: #495057;
+            font-weight: 700; transition: all 0.2s ease; width: 100%; text-align: left;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .admin-menu-btn:hover {
+            background: #f8f9fa; transform: translateY(-2px); 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-color: #dee2e6;
+        }
+        .admin-menu-btn i { font-size: 1.2rem; width: 35px; }
+    </style>
+</head>
+<body onload="initApp()">
+
+    <header class="main-header">
+        <div class="header-logo-group">
+            <img src="https://img2.pic.in.th/pic/71f81565dc59a7f9545542493a5514ab.png" alt="Logo" class="header-logo">
+            <div class="header-text-container">
+                <div class="header-title-main">ระบบแสดงเส้นทางรับผิดชอบพนักงานกองสาธารณสุข</div>
+                <div class="header-title-sub">กองสาธารณสุข เทศบาลตำบลตันหยงมัส</div>
+            </div>
+        </div>
+        <div>
+            <button id="admin-mode-btn" class="btn btn-admin-login btn-sm rounded-pill px-3 admin-btn-custom" onclick="handleAdminLogin()">
+                <i class="fas fa-user-shield"></i> <span class="admin-btn-text ms-1">สำหรับเจ้าหน้าที่</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <button type="button" class="btn-close float-start" onclick="closeSidebar()"></button>
+            <div id="staff-img-wrapper" class="mt-2 mb-3"></div>
+            <h4 id="staff-name" class="fw-bold mb-2 text-success"></h4>
+            <div class="badge-position mt-1">
+                <i class="fas fa-id-badge text-primary me-1"></i> <span id="staff-pos"></span>
+            </div>
+        </div>
+        
+        <div class="sidebar-body">
+            
+            <div class="info-card">
+                <div class="info-card-title text-success">
+                    <div class="icon-box bg-green"><i class="fas fa-map-marked-alt"></i></div>
+                    เส้นทางและพื้นที่รับผิดชอบ
+                </div>
+                <div class="d-flex align-items-start">
+                    <i class="fas fa-route text-muted mt-1 me-2"></i>
+                    <p id="staff-route-detail" class="text-dark mb-0 small" style="line-height: 1.6;"></p>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-card-title" style="color: #e67e22;">
+                    <div class="icon-box bg-orange"><i class="fas fa-camera-retro"></i></div>
+                    ภาพถ่ายสภาพพื้นที่
+                </div>
+                <div id="route-img-wrapper"></div>
+            </div>
+            
+            
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycby91YrOvbb8GPrBhjF7rd7-vYsrhhyru4etmloUaXneaRti2o0ze-sL8hLU5-Qk_57wbg/exec"; 
+        
+        let map, isAdmin = false, sessionToken = null;
+        let targetEditStaff = null; // เก็บข้อมูลพนักงานทั้งก้อนเพื่อนำไปแสดงในฟอร์มแก้ไข
+        const drawnItems = new L.FeatureGroup();
+
+       function initApp() {
+            // 1. สร้างตัวแปรเก็บรูปแบบแผนที่ทั้ง 2 ชนิด
+            const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap contributors'
+            });
+
+            const esriSatelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 18,
+                attribution: 'Tiles &copy; Esri'
+            });
+
+            // 2. สร้างแผนที่และกำหนดแผนที่เริ่มต้น (layers: [streetMap])
+            map = L.map('map', { 
+                zoomControl: false,
+                layers: [streetMap] // ให้แสดง OpenStreetMap เป็นค่าเริ่มต้น
+            }).setView([6.29445, 101.72362], 15); 
+            
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            // 3. เพิ่มปุ่มควบคุมตัวเลือกแผนที่ (มุมขวาบน)
+            const baseMaps = {
+                "🗺️ แผนที่ถนน (OpenStreetMap)": streetMap,
+                "🌍 แผนที่ดาวเทียม (Esri)": esriSatelliteMap
+            };
+            L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+            // 4. การทำงานส่วนอื่นๆ ของแผนที่ (คงไว้ตามเดิม)
+            drawnItems.addTo(map);
+
+            map.on('click', closeSidebar);
+
+            map.on(L.Draw.Event.CREATED, async function (e) {
+                const coords = JSON.stringify(e.layer.getLatLngs());
+                drawnItems.clearLayers();
+                drawnItems.addLayer(e.layer);
+
+                if (targetEditStaff) {
+                    handleEditExistingRoute(coords, targetEditStaff);
+                } else {
+                    handleAddNewRoute(coords);
+                }
+            });
+
+            // โหลดข้อมูลพนักงาน
+            loadData();
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch(`${GAS_URL}?action=getStaffData`);
+                
+                // ถ้าระบบตอบกลับมาไม่ใช่สถานะปกติ (เช่น 404, 500)
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                
+                const textData = await response.text(); // ดึงข้อมูลมาเป็นข้อความดิบก่อน
+                
+                try {
+                    // พยายามแปลงเป็น JSON
+                    const data = JSON.parse(textData);
+                    drawRoutes(data);
+                } catch (jsonError) {
+                    // ถ้าแปลงไม่ได้ แปลว่า GAS ส่งหน้า HTML Error กลับมา
+                    console.error("Error from Apps Script:", textData);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เซิร์ฟเวอร์ทำงานผิดพลาด',
+                        text: 'Google Apps Script ไม่ได้ส่งข้อมูลพิกัดมา โปรดตรวจสอบการ Deploy หรือ URL (ดูรายละเอียดเพิ่มเติมใน F12 Console)',
+                        customClass: { popup: 'rounded-4' }
+                    });
+                }
+            } catch (error) {
+                console.error("Fetch failed:", error);
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'เชื่อมต่อฐานข้อมูลไม่ได้',
+                    text: 'กรุณาตรวจสอบว่า GAS_URL ถูกต้อง และอินเทอร์เน็ตใช้งานได้ปกติ',
+                    customClass: { popup: 'rounded-4' }
+                });
+            }
+        }
+
+        function drawRoutes(data) {
+            data.forEach(staff => {
+                if(staff.PolylineData && staff.PolylineData.length > 0) {
+                    const poly = L.polyline(staff.PolylineData, { 
+                        color: staff.Color || '#2d6a4f', 
+                        weight: 6, 
+                        opacity: 0.8 
+                    }).addTo(map);
+                    
+                    // --- เพิ่มระบบ Tooltip เมื่อเอาเมาส์ชี้ ---
+                    const tooltipHTML = `
+                        <div class="tooltip-card">
+                            <div class="tooltip-line mb-1">
+                                <i class="fas fa-user-circle me-2" style="color: var(--primary-color); font-size: 1rem; width: 16px; text-align: center;"></i>
+                                <span class="tooltip-text fw-bold text-dark" style="font-size: 0.95rem;">
+                                    ${staff.Name || 'ไม่ระบุชื่อ'}
+                                </span>
+                            </div>
+                            
+                            <div class="tooltip-line">
+                                <i class="fas fa-map-marker-alt text-danger me-2" style="font-size: 0.9rem; width: 16px; text-align: center;"></i>
+                                <span class="tooltip-text text-secondary" style="font-size: 0.85rem;">
+                                    ${staff.RouteDetail || '-'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+
+                    poly.bindTooltip(tooltipHTML, {
+                        sticky: true,          // ให้ Popup ขยับตามลูกศรเมาส์
+                        className: 'custom-tooltip', // เรียกใช้ CSS ที่เราตกแต่งไว้
+                        direction: 'top',      // ให้อยู่ด้านบนของเมาส์
+                        offset: [0, -10]       // ขยับให้ห่างจากปลายเมาส์เล็กน้อย
+                    });
+                    // ----------------------------------------
+                    
+                    poly.on('click', (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        
+                        // ซูมเข้าหาเส้นทางที่คลิก
+                        map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+
+                        if (isAdmin) promptAdminEdit(staff);
+                        else showDetail(staff);
+                    });
+                }
+            });
+        }
+
+        function showDetail(data) {
+            const imgWrapper = document.getElementById('staff-img-wrapper');
+            if (data.PhotoUrl && data.PhotoUrl.trim() !== "") {
+                imgWrapper.innerHTML = `<img src="${data.PhotoUrl}" class="profile-img">`;
+            } else {
+                imgWrapper.innerHTML = `<div class="profile-placeholder"><i class="fas fa-user fa-4x"></i></div>`;
+            }
+
+            document.getElementById('staff-name').innerText = data.Name || 'ไม่ระบุชื่อ';
+            document.getElementById('staff-pos').innerText = data.Position || 'ไม่ระบุตำแหน่ง';
+            document.getElementById('staff-route-detail').innerText = data.RouteDetail || 'ไม่มีข้อมูลรายละเอียดเส้นทาง';
+            
+            // ดึงรูปภาพเส้นทางมาใส่ในการ์ด (ลบ <h6> เดิมออกเพราะมีในการ์ดแล้ว)
+            const routeWrapper = document.getElementById('route-img-wrapper');
+            if (data.RoutePhotoUrl && data.RoutePhotoUrl.trim() !== "") {
+                routeWrapper.innerHTML = `<img src="${data.RoutePhotoUrl}" class="route-preview-img">`;
+            } else {
+                routeWrapper.innerHTML = `
+                    <div class="route-placeholder">
+                        <i class="fas fa-image fa-2x mb-2"></i>
+                        <span class="small fw-bold">ไม่ปรากฏรูปภาพเส้นทาง</span>
+                    </div>`;
+            }
+            
+            document.getElementById('sidebar').classList.add('active');
+        }
+
+        function closeSidebar() { document.getElementById('sidebar').classList.remove('active'); }
+
+        async function handleAdminLogin() {
+            // 1. ถ้าเป็น Admin อยู่แล้ว (ปุ่มสีเหลือง) แล้วกดปุ่มนี้อีกครั้ง -> ให้ถามเพื่อ Logout
+            if (isAdmin) {
+                const logout = await Swal.fire({
+                    title: 'ออกจากโหมดผู้ดูแลระบบ?',
+                    text: 'เครื่องมือจัดการเส้นทางจะถูกปิดลง',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'ออกจากระบบ',
+                    cancelButtonText: 'ยกเลิก',
+                    customClass: { popup: 'rounded-4' }
+                });
+                
+                if (logout.isConfirmed) {
+                    location.reload(); // รีโหลดหน้าเพื่อเคลียร์ค่า Token และปิดเครื่องมือวาด
+                }
+                return; // หยุดการทำงานแค่นี้ ไม่ต้องไปโชว์ฟอร์มใส่รหัสผ่านอีก
+            }
+
+            // 2. ถ้ายังไม่เป็น Admin -> โชว์ฟอร์มใส่รหัสผ่านตามปกติ
+            const { value: password } = await Swal.fire({ 
+                title: 'ยืนยันตัวตนเจ้าหน้าที่', 
+                input: 'password', 
+                showCancelButton: true, 
+                confirmButtonColor: '#2d6a4f',
+                customClass: { popup: 'rounded-4' }
+            });
+
+            if (password) {
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "checkLogin", password: password }) });
+                const result = await response.json();
+                
+                if (result.success) {
+                    isAdmin = true; 
+                    sessionToken = result.token;
+                    
+                    // เพิ่มเครื่องมือวาดเส้น
+                    map.addControl(new L.Control.Draw({ 
+                        edit: { featureGroup: drawnItems }, 
+                        draw: { polyline: { shapeOptions: { color: '#f1c40f', weight: 8 } }, polygon: false, circle: false, marker: false, rectangle: false, circlemarker: false } 
+                    }));
+                    
+                    // --- ส่วนที่เพิ่มใหม่: เปลี่ยนสีและข้อความของปุ่ม ---
+                    const adminBtn = document.getElementById('admin-mode-btn');
+                    adminBtn.classList.remove('btn-admin-login'); // เอาสไตล์เดิมออก
+                    adminBtn.classList.add('btn-warning', 'text-dark', 'fw-bold', 'shadow-sm'); // ใส่สีเหลือง (warning)
+                    adminBtn.innerHTML = '<i class="fas fa-user-cog"></i> <span class="admin-btn-text ms-1">โหมดผู้ดูแลระบบ</span>';
+                    // ----------------------------------------------
+
+                    Swal.fire({ 
+                        icon: 'success', 
+                        title: 'โหมดผู้ดูแลระบบ', 
+                        html: 'คลิกที่เส้นเพื่อ <b>แก้ไขข้อมูล</b> หรือใช้เครื่องมือซ้ายบนเพื่อ <b>วาดพนักงานใหม่</b>',
+                        customClass: { popup: 'rounded-4' }
+                    });
+                } else {
+                    Swal.fire('ผิดพลาด', 'รหัสผ่านไม่ถูกต้อง', 'error');
+                }
+            }
+        }
+
+
+        let tempStaffForAction = null; // ตัวแปรเก็บค่าชั่วคราวสำหรับเมนู
+
+        // 1. หน้าต่างเมนูเมื่อ Admin คลิกเส้นทาง
+        async function promptAdminEdit(staff) {
+            closeSidebar(); 
+            tempStaffForAction = staff; // เก็บข้อมูลไว้ใช้กับปุ่มในเมนู
+            
+            let profileImgHtml = '';
+            if (staff.PhotoUrl && staff.PhotoUrl.trim() !== "") {
+                profileImgHtml = `<img src="${staff.PhotoUrl}" style="width: 85px; height: 85px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin: 0 auto 12px;">`;
+            } else {
+                profileImgHtml = `<div style="width: 85px; height: 85px; border-radius: 50%; background: #e9ecef; color: #adb5bd; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto 12px; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.15);"><i class="fas fa-user"></i></div>`;
+            }
+
+            await Swal.fire({
+                title: '<div class="fw-bold mt-1 text-dark" style="font-size: 1.3rem;"><i class="fas fa-tools text-secondary me-2"></i>จัดการข้อมูลพนักงาน</div>',
+                html: `
+                    <div class="p-3 mt-2 mb-3 rounded-4 shadow-sm" style="background: linear-gradient(145deg, #e9f5ee 0%, #ffffff 100%); border: 1px solid #d1e7dd;">
+                        ${profileImgHtml}
+                        <h5 class="fw-bold text-success mb-2">${staff.Name || 'ไม่ระบุชื่อ'}</h5>
+                        <span class="badge bg-white text-secondary border px-3 py-2 shadow-sm rounded-pill" style="font-size: 0.85rem;">
+                            <i class="fas fa-id-badge text-primary me-1"></i> ${staff.Position || 'ไม่ระบุตำแหน่ง'}
+                        </span>
+                    </div>
+                    
+                    <div class="mt-2 px-1">
+                        <button class="admin-menu-btn text-primary" onclick="Swal.close(); openEditDataForm();">
+                            <i class="fas fa-edit"></i> <span>แก้ไขข้อมูล (ไม่ต้องวาดเส้นใหม่)</span>
+                        </button>
+                        <button class="admin-menu-btn" style="color: #e67e22;" onclick="Swal.close(); startRedrawRoute();">
+                            <i class="fas fa-route"></i> <span>แก้ไขเส้นทาง (วาดพิกัดใหม่ทับ)</span>
+                        </button>
+                        <button class="admin-menu-btn text-success" onclick="Swal.close(); openColorPicker();">
+                            <i class="fas fa-palette"></i> <span>เปลี่ยนแค่สีเส้นทาง</span>
+                        </button>
+                        <button class="admin-menu-btn text-secondary" onclick="Swal.close(); showDetail(tempStaffForAction);">
+                            <i class="fas fa-address-card"></i> <span>ดูรายละเอียด</span>
+                        </button>
+                    </div>
+                `,
+                width: '420px',
+                background: '#f8f9fa',
+                customClass: { popup: 'rounded-4' },
+                showConfirmButton: false, 
+                showCancelButton: true,
+                cancelButtonText: 'ปิดหน้าต่าง',
+                cancelButtonColor: '#adb5bd'
+            });
+        }
+
+        // 2. ฟังก์ชันแยก: กรณีเลือก "แก้ไขข้อมูล" (เด้งฟอร์มทันที พิกัดยังเป็น null)
+        function openEditDataForm() {
+            handleEditExistingRoute(null, tempStaffForAction);
+        }
+
+        // 3. ฟังก์ชันแยก: กรณีเลือก "แก้ไขเส้นทาง" (ให้วาดก่อนเหมือนเดิม)
+        function startRedrawRoute() {
+            targetEditStaff = tempStaffForAction; 
+            Swal.fire({ 
+                icon: 'info', title: 'โหมดวาดเส้นทางใหม่', 
+                text: `กรุณาลากเส้นใหม่บนแผนที่สำหรับคุณ ${tempStaffForAction.Name} เมื่อลากเสร็จระบบจะให้ยืนยันอีกครั้ง`, 
+                timer: 4000, showConfirmButton: false, customClass: { popup: 'rounded-4' }
+            });
+        }
+
+        // 4. ฟังก์ชันแยก: กรณีเลือก "เปลี่ยนสีเส้น"
+        async function openColorPicker() {
+            const staff = tempStaffForAction;
+            const colorRes = await Swal.fire({
+                title: '<div class="text-success fw-bold mt-2"><i class="fas fa-palette me-2"></i>เปลี่ยนสีเส้นทาง</div>', 
+                html: `
+                    <div class="mt-3 text-start p-3 bg-white rounded-4 border shadow-sm">
+                        <label class="small fw-bold text-secondary mb-2 d-block">เลือกสีที่ต้องการสำหรับคุณ ${staff.Name}</label>
+                        <input type="color" id="swal-edit-color" class="form-control form-control-color w-100 p-1 border-0 rounded-3 shadow-sm" style="height:55px;" value="${staff.Color || '#2d6a4f'}">
+                    </div>
+                `, 
+                width: '380px', background: '#f8f9fa', customClass: { popup: 'rounded-4' },
+                showCancelButton: true, confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกสี', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#2d6a4f'
+            });
+            
+            if (colorRes.isConfirmed) {
+                executeSave({ id: staff.ID, color: document.getElementById('swal-edit-color').value }, "updateRouteData");
+            }
+        }
+
+        // 5. Popup แสดงฟอร์มข้อมูล (รองรับทั้งการแก้แค่ข้อมูล และ การวาดเส้นใหม่)
+        async function handleEditExistingRoute(coords, staff) {
+            // ปรับเปลี่ยนหัวข้อ Popup อัตโนมัติ ว่ามาจากการวาดเส้นใหม่ หรือมาแก้ข้อมูลเฉยๆ
+            const titleHtml = coords 
+                ? '<div class="text-warning fw-bold mt-2"><i class="fas fa-route me-2"></i>ยืนยันข้อมูลและพิกัดใหม่</div>'
+                : '<div class="text-primary fw-bold mt-2"><i class="fas fa-edit me-2"></i>แก้ไขข้อมูลพนักงาน</div>';
+
+            const { value: formValues } = await Swal.fire({
+                title: titleHtml,
+                html: `
+                    <div class="text-start" style="font-size: 0.95rem;">
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-primary fw-bold border-bottom pb-2 mb-3"><i class="fas fa-user-tag me-2"></i>ข้อมูลพนักงาน</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold text-secondary mb-1">ชื่อ-นามสกุล</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light text-primary"><i class="fas fa-user"></i></span>
+                                    <input id="sw-n" class="form-control" value="${staff.Name || ''}">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">ตำแหน่ง</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light text-primary"><i class="fas fa-id-badge"></i></span>
+                                    <input id="sw-p" class="form-control" value="${staff.Position || ''}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-success fw-bold border-bottom pb-2 mb-3"><i class="fas fa-map-marked-alt me-2"></i>รายละเอียดพื้นที่รับผิดชอบ</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold text-secondary mb-1">ขอบเขตการทำงาน</label>
+                                <textarea id="sw-d" class="form-control form-control-sm" rows="2">${staff.RouteDetail || ''}</textarea>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">สีเส้นทางในแผนที่</label>
+                                <div class="input-group input-group-sm">
+                           
+                                    <input type="color" id="sw-c" class="form-control form-control-color w-100 p-1" style="height: 35px;" value="${staff.Color || '#2d6a4f'}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fas fa-images me-2 text-warning"></i>รูปภาพประกอบ (URL)</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold text-secondary mb-1">รูปประจำตัวพนักงาน</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light"><i class="fas fa-portrait text-muted"></i></span>
+                                    <input id="sw-p1" class="form-control" value="${staff.PhotoUrl || ''}">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">รูปสภาพพื้นที่</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light"><i class="fas fa-image text-muted"></i></span>
+                                    <input id="sw-p2" class="form-control" value="${staff.RoutePhotoUrl || ''}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                width: '500px', background: '#f8f9fa', customClass: { popup: 'rounded-4' },
+                focusConfirm: false, showCancelButton: true, confirmButtonColor: '#2d6a4f', confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกข้อมูล', cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const name = document.getElementById('sw-n').value;
+                    if (!name) { Swal.showValidationMessage('<i class="fas fa-exclamation-circle"></i> กรุณากรอกชื่อพนักงาน'); return false; }
+                    return {
+                        id: staff.ID, name: name, pos: document.getElementById('sw-p').value, detail: document.getElementById('sw-d').value,
+                        photo: document.getElementById('sw-p1').value, routePhoto: document.getElementById('sw-p2').value,
+                        color: document.getElementById('sw-c').value, 
+                        coords: coords // ถ้ามาจากปุ่มแก้ไขข้อมูล ตัวนี้จะเป็น null (Backend จะรู้และไม่บันทึกพิกัดใหม่ทับ)
+                    }
+                }
+            });
+
+            if (formValues) {
+                executeSave(formValues, "updateRouteData");
+                targetEditStaff = null;
+            } else { 
+                drawnItems.clearLayers(); 
+                targetEditStaff = null; 
+            }
+        }
+
+        // กรณีแก้ไข: แสดง Popup พร้อมข้อมูลเดิมให้แก้ (UI ใหม่)
+        // ฟังก์ชันอ่านไฟล์รูป
+        function getBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        // ฟังก์ชันอัปโหลดรูปแยกต่างหากเมื่อกดปุ่ม
+       // ฟังก์ชันอัปโหลดรูปแยกต่างหากเมื่อกดปุ่ม (อัปเดตระบบตรวจสอบข้อผิดพลาด)
+        async function uploadSingleImage(inputId, type, outputId) {
+            const fileInput = document.getElementById(inputId);
+            const file = fileInput.files[0];
+            
+            // 1. ตรวจสอบว่ามีการเลือกไฟล์หรือยัง
+            if (!file) {
+                Swal.showValidationMessage('กรุณาเลือกไฟล์รูปภาพก่อนกดอัปโหลด');
+                return;
+            }
+            
+            // ตรวจสอบขนาดไฟล์ (แนะนำไม่เกิน 5MB เพื่อไม่ให้ GAS โหลดนานเกินไป)
+            if (file.size > 5 * 1024 * 1024) {
+                Swal.showValidationMessage('ขนาดไฟล์ใหญ่เกินไป กรุณาใช้รูปขนาดไม่เกิน 5MB');
+                return;
+            }
+            
+            Swal.resetValidationMessage();
+            
+            // 2. จัดการ UI ของปุ่มให้อยู่ในสถานะ "กำลังโหลด"
+            const btn = fileInput.nextElementSibling; // หาปุ่มที่อยู่ติดกับ Input
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> อัปโหลด...';
+            btn.disabled = true;
+
+            try {
+                // 3. แปลงไฟล์เป็น Base64
+                const base64 = await getBase64(file);
+                
+                const payload = {
+                    action: 'uploadImage',
+                    token: sessionToken,
+                    type: type, // 'profile' หรือ 'route'
+                    base64: base64
+                };
+
+                console.log(`[Upload] กำลังส่งรูป ${type} ไปยังเซิร์ฟเวอร์...`);
+
+                // 4. ส่งข้อมูลไปยัง Apps Script
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                // 5. เช็คว่าการเชื่อมต่อกับ Google ขัดข้องไหม (เช่น เน็ตหลุด หรือ URL ผิด)
+                if (!response.ok) {
+                    throw new Error(`การเชื่อมต่อล้มเหลว (HTTP Status: ${response.status})`);
+                }
+
+                // 6. แปลงผลลัพธ์กลับมาเป็น JSON
+                const result = await response.json();
+                console.log("[Upload] เซิร์ฟเวอร์ตอบกลับ:", result);
+                
+                // 7. จัดการผลลัพธ์
+                if(result.success) {
+                    // อัปโหลดสำเร็จ
+                    document.getElementById(outputId).value = result.url;
+                    btn.innerHTML = '<i class="fas fa-check"></i> สำเร็จ';
+                    btn.classList.replace('btn-primary', 'btn-success');
+                    btn.classList.replace('btn-danger', 'btn-success'); // เผื่อเคยกดแล้วพัง (สีแดง) ให้กลับเป็นเขียว
+                } else {
+                    // ฝั่ง Apps Script ทำงานพัง (อาจจะ Folder ID ผิด หรือลืมเปิดสิทธิ์)
+                    console.error("[Upload] Error จากฝั่ง Apps Script:", result.error);
+                    Swal.showValidationMessage('ฝั่งเซิร์ฟเวอร์ปฏิเสธ: ' + (result.error || 'ไม่ทราบสาเหตุ'));
+                    btn.innerHTML = '<i class="fas fa-times"></i> ล้มเหลว';
+                    btn.classList.replace('btn-primary', 'btn-danger');
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                 // ฝั่งหน้าเว็บพัง หรือส่งข้อมูลไม่สำเร็จ
+                 console.error("[Upload] Error ฝั่งหน้าเว็บ:", e);
+                 Swal.showValidationMessage('เกิดข้อผิดพลาดในการส่งข้อมูล: ' + e.message);
+                 btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ลองใหม่';
+                 btn.classList.replace('btn-primary', 'btn-warning');
+                 btn.disabled = false;
+            }
+        }
+
+        // Popup สำหรับแก้ไขข้อมูล
+        async function handleEditExistingRoute(coords, staff) {
+            const titleHtml = coords 
+                ? '<div class="text-warning fw-bold mt-2"><i class="fas fa-route me-2"></i>ยืนยันพิกัดใหม่และแก้ไขข้อมูล</div>'
+                : '<div class="text-primary fw-bold mt-2"><i class="fas fa-edit me-2"></i>แก้ไขข้อมูลพนักงาน</div>';
+
+            const { value: formValues } = await Swal.fire({
+                title: titleHtml,
+                html: `
+                    <div class="text-start" style="font-size: 0.95rem;">
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-primary fw-bold border-bottom pb-2 mb-3"><i class="fas fa-user-tag me-2"></i>ข้อมูลพนักงาน</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold text-secondary mb-1">ชื่อ-นามสกุล</label>
+                                <input id="sw-n" class="form-control form-control-sm" value="${staff.Name || ''}">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">ตำแหน่ง</label>
+                                <input id="sw-p" class="form-control form-control-sm" value="${staff.Position || ''}">
+                            </div>
+                        </div>
+
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-success fw-bold border-bottom pb-2 mb-3"><i class="fas fa-map-marked-alt me-2"></i>พื้นที่รับผิดชอบ</h6>
+                            <div class="mb-2">
+                                <textarea id="sw-d" class="form-control form-control-sm" rows="2">${staff.RouteDetail || ''}</textarea>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">สีเส้นทาง</label>
+                                <input type="color" id="sw-c" class="form-control form-control-color w-100 p-1" style="height: 35px;" value="${staff.Color || '#2d6a4f'}">
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-white rounded border shadow-sm">
+                            <h6 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fas fa-file-upload me-2"></i>อัปโหลดรูปภาพ</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary mb-1">1. รูปประจำตัวพนักงาน</label>
+                                <div class="input-group input-group-sm mb-1">
+                                    <input type="file" id="sw-f1" class="form-control" accept="image/*">
+                                    <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f1', 'profile', 'sw-u1')"><i class="fas fa-upload"></i> อัปโหลด</button>
+                                </div>
+                                <input type="text" id="sw-u1" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูป..." value="${staff.PhotoUrl || ''}" readonly>
+                            </div>
+
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">2. รูปสภาพพื้นที่หน้างาน</label>
+                                <div class="input-group input-group-sm mb-1">
+                                    <input type="file" id="sw-f2" class="form-control" accept="image/*">
+                                    <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f2', 'route', 'sw-u2')"><i class="fas fa-upload"></i> อัปโหลด</button>
+                                </div>
+                                <input type="text" id="sw-u2" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูป..." value="${staff.RoutePhotoUrl || ''}" readonly>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                width: '500px', background: '#f8f9fa', customClass: { popup: 'rounded-4' },
+                focusConfirm: false, showCancelButton: true, confirmButtonColor: '#2d6a4f', confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกข้อมูล',
+                preConfirm: () => {
+                    const name = document.getElementById('sw-n').value;
+                    if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อพนักงาน'); return false; }
+
+                    return {
+                        id: staff.ID, name: name, pos: document.getElementById('sw-p').value, detail: document.getElementById('sw-d').value,
+                        photo: document.getElementById('sw-u1').value,       // ดึงลิงก์จากช่องที่ Readonly
+                        routePhoto: document.getElementById('sw-u2').value,  // ดึงลิงก์จากช่องที่ Readonly
+                        color: document.getElementById('sw-c').value, coords: coords 
+                    }
+                }
+            });
+
+            if (formValues) { executeSave(formValues, "updateRouteData"); targetEditStaff = null; } 
+            else { drawnItems.clearLayers(); targetEditStaff = null; }
+        }
+
+        // Popup สำหรับเพิ่มพนักงานใหม่ (โครงสร้าง HTML อัปโหลดเหมือนข้างบน)
+        async function handleAddNewRoute(coords) {
+            const { value: formValues } = await Swal.fire({
+                title: '<div class="text-success fw-bold mt-2"><i class="fas fa-user-plus me-2"></i>เพิ่มพนักงานใหม่</div>',
+                html: `
+                    <div class="text-start" style="font-size: 0.95rem;">
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm border-top border-3 border-primary">
+                            <h6 class="text-primary fw-bold border-bottom pb-2 mb-3"><i class="fas fa-user-tag me-2"></i>ข้อมูลพนักงาน</h6>
+                            <input id="sw-n" class="form-control form-control-sm mb-2" placeholder="ชื่อ-นามสกุล">
+                            <input id="sw-p" class="form-control form-control-sm" placeholder="ตำแหน่ง">
+                        </div>
+
+                        <div class="p-3 mb-3 bg-white rounded border shadow-sm border-top border-3 border-success">
+                            <h6 class="text-success fw-bold border-bottom pb-2 mb-3"><i class="fas fa-map-marked-alt me-2"></i>พื้นที่รับผิดชอบ</h6>
+                            <textarea id="sw-d" class="form-control form-control-sm mb-2" rows="2" placeholder="รายละเอียดเส้นทาง"></textarea>
+                            <label class="small fw-bold">สีเส้นทาง</label>
+                            <input type="color" id="sw-c" class="form-control form-control-color w-100 p-1" style="height: 35px;" value="#2d6a4f">
+                        </div>
+
+                        <div class="p-3 bg-white rounded border shadow-sm border-top border-3 border-warning">
+                            <h6 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fas fa-file-upload me-2"></i>อัปโหลดรูปภาพ</h6>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary mb-1">1. รูปประจำตัวพนักงาน</label>
+                                <div class="input-group input-group-sm mb-1">
+                                    <input type="file" id="sw-f1" class="form-control" accept="image/*">
+                                    <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f1', 'profile', 'sw-u1')"><i class="fas fa-upload"></i> อัปโหลด</button>
+                                </div>
+                                <input type="text" id="sw-u1" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูป..." readonly>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-secondary mb-1">2. รูปสภาพพื้นที่หน้างาน</label>
+                                <div class="input-group input-group-sm mb-1">
+                                    <input type="file" id="sw-f2" class="form-control" accept="image/*">
+                                    <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f2', 'route', 'sw-u2')"><i class="fas fa-upload"></i> อัปโหลด</button>
+                                </div>
+                                <input type="text" id="sw-u2" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูป..." readonly>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                width: '500px', background: '#f8f9fa', customClass: { popup: 'rounded-4' },
+                focusConfirm: false, showCancelButton: true, confirmButtonColor: '#2d6a4f', confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกข้อมูล',
+                preConfirm: () => {
+                    const name = document.getElementById('sw-n').value;
+                    if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อพนักงาน'); return false; }
+                    return { 
+                        name: name, pos: document.getElementById('sw-p').value, detail: document.getElementById('sw-d').value, 
+                        photo: document.getElementById('sw-u1').value,       // รับลิงก์ที่อัปโหลดเสร็จแล้ว
+                        routePhoto: document.getElementById('sw-u2').value,  // รับลิงก์ที่อัปโหลดเสร็จแล้ว
+                        color: document.getElementById('sw-c').value, coords: coords 
+                    }
+                }
+            });
+
+            if (formValues) executeSave(formValues, "addNewStaff");
+            else drawnItems.clearLayers();
+        }
+
+        async function executeSave(payload, action) {
+            if (!sessionToken) return Swal.fire('Error', 'Token ไม่ถูกต้อง กรุณา Login ใหม่', 'error');
+            
+            Swal.fire({
+                title: 'กำลังบันทึกและอัปโหลดรูปภาพ...', // แจ้งเตือนว่ากำลังอัปโหลด
+                html: '<span class="text-muted small">โปรดรอสักครู่ อาจใช้เวลา 5-10 วินาที</span>',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: action, token: sessionToken, ...payload }) });
+                const result = await response.text();
+                await Swal.fire('สำเร็จ', result, 'success');
+                location.reload();
+            } catch (error) {
+                Swal.fire('Error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+            }
+        }
+
+        async function executeSave(payload, action) {
+            if (!sessionToken) return Swal.fire('Error', 'Token ไม่ถูกต้อง กรุณา Login ใหม่', 'error');
+            
+            // ใช้ระบบ Loader ของ SweetAlert แทน HTML เพื่อกันปัญหาค้าง/บังจอ
+            Swal.fire({
+                title: 'กำลังบันทึกข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: action, token: sessionToken, ...payload }) });
+                const result = await response.text();
+                await Swal.fire('สำเร็จ', result, 'success');
+                location.reload();
+            } catch (error) {
+                Swal.fire('Error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
