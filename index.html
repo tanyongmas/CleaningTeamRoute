@@ -168,6 +168,20 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-color: #dee2e6;
         }
         .admin-menu-btn i { font-size: 1.2rem; width: 35px; }
+        /* ==========================================
+           เอฟเฟกต์ไฟนีออนสำหรับเส้นทางที่ถูกคลิก
+           ========================================== */
+        /* ทำให้เส้นปกติมีการเคลื่อนไหวที่นุ่มนวลตอนเปลี่ยนขนาด */
+        path.route-path {
+            transition: stroke-width 0.3s ease, filter 0.3s ease !important;
+        }
+
+        /* คลาสที่จะถูกเติมเข้าไปเมื่อคลิกเส้น */
+        path.neon-active {
+            /* ใช้ drop-shadow ซ้อนกัน 2 ชั้นเพื่อให้แสงฟุ้งกระจาย */
+            filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 15px currentColor) !important;
+            /* currentColor จะดึงสีดั้งเดิมของเส้นนั้นๆ มาทำเป็นสีของแสงนีออน */
+        }
     </style>
 </head>
 <body onload="initApp()">
@@ -278,7 +292,26 @@
                     handleAddNewRoute(coords);
                 }
             });
-
+            // ==========================================
+            // ส่วนที่เพิ่มใหม่: เมื่อคลิกที่ว่างบนแผนที่ ให้ยกเลิกการไฮไลท์เส้น
+            // ==========================================
+            map.on('click', function(e) {
+                // ตรวจสอบและรีเซ็ตทุกเส้นที่มีคลาส 'route-path'
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.Polyline && layer.options.className === 'route-path') {
+                        // 1. คืนค่าความหนาเส้นเป็นปกติ (ตามที่คุณตั้งไว้คือ 6)
+                        layer.setStyle({ weight: 6 }); 
+                        
+                        // 2. ลบคลาสไฟนีออนออก
+                        if (layer.getElement()) {
+                            layer.getElement().classList.remove('neon-active');
+                        }
+                    }
+                });
+                
+                // (ถ้ามีฟังก์ชันปิด Sidebar สามารถใส่ตรงนี้ได้ด้วย)
+                // closeSidebar(); 
+            });
             // โหลดข้อมูลพนักงาน
             loadData();
         }
@@ -318,39 +351,38 @@
             }
         }
 
-        function drawRoutes(data) {
+       function drawRoutes(data) {
             data.forEach(staff => {
                 if(staff.PolylineData && staff.PolylineData.length > 0) {
+                    
+                    const routeColor = staff.Color || staff.color || '#3388ff'; // ดึงสีเส้นทางออกมาก่อนเพื่อใช้ทั้งวาดเส้นและทำไฟนีออน
+
+                    // 1. สร้างเส้นทาง
                     const poly = L.polyline(staff.PolylineData, { 
-                        color: staff.Color || '#2d6a4f', 
+                        color: routeColor, 
                         weight: 6, 
-                        opacity: 0.8 
+                        opacity: 0.8, // [แก้ไขแล้ว] เพิ่มลูกน้ำตรงนี้เพื่อไม่ให้โค้ด Error
+                        className: 'route-path' // เพิ่มคลาสสำหรับเรียกใช้ CSS
                     }).addTo(map);
 
                         // ==========================================
-                        // ส่วนที่ดัดแปลง: Tooltip รูปแบบ Modern Card (ขอบมน ดูสะอาดตา)
+                        // Tooltip รูปแบบ Modern Card
                         // ==========================================
                         const defaultAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
                         const photoUrl = staff.Photo || staff.photo || staff.PhotoUrl || staff.รูปภาพ || defaultAvatar;
                         const staffName = staff.Name || staff.name || "ไม่ระบุชื่อ";
-                        const routeColor = staff.Color || staff.color || '#3388ff';
                         const routeDetail = staff.RouteDetail || staff.detail || staff.รายละเอียด || "ไม่ได้ระบุเส้นทาง";
 
-                        // ออกแบบโครงสร้าง HTML & Inline CSS สไตล์ Modern UI
                         const tooltipHTML = `
                             <div style="background: #ffffff; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 15px; text-align: center; min-width: 160px; border: 1px solid rgba(0,0,0,0.05);">
-                                
                                 <div style="position: relative; display: inline-block; margin-bottom: 8px;">
                                     <img src="${photoUrl}" 
                                          style="width: 65px; height: 65px; object-fit: cover; border-radius: 50%; border: 3px solid ${routeColor}; padding: 2px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                 </div>
-                                
                                 <div style="font-size: 15px; font-weight: bold; color: #1e293b; margin-bottom: 4px;">
                                     ${staffName}
                                 </div>
-                                
                                 <div style="height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); margin: 8px 0;"></div>
-                                
                                 <div style="font-size: 12px; color: #64748b; max-width: 170px; white-space: normal; line-height: 1.5; text-align: center; margin: 0 auto;">
                                     <div style="display: inline-block; background: #f8f9fa; border: 1px solid #e9ecef; color: ${routeColor}; padding: 2px 8px; border-radius: 20px; margin-bottom: 5px; font-size: 10px; font-weight: bold;">
                                         <i class="fas fa-map-marker-alt"></i> พื้นที่รับผิดชอบ
@@ -358,23 +390,46 @@
                                     <br>
                                     ${routeDetail}
                                 </div>
-                                
                             </div>
                         `;
+                        
                     poly.bindTooltip(tooltipHTML, {
-                        sticky: true,          // ให้ Popup ขยับตามลูกศรเมาส์
-                        className: 'modern-card-tooltip', // เรียกใช้ CSS ที่เราตกแต่งไว้
-                        direction: 'top',      // ให้อยู่ด้านบนของเมาส์
-                        offset: [0, -10]       // ขยับให้ห่างจากปลายเมาส์เล็กน้อย
+                        sticky: true,          
+                        className: 'modern-card-tooltip', 
+                        direction: 'top',      
+                        offset: [0, -10]       
                     });
-                    // ----------------------------------------
                     
-                    poly.on('click', (e) => {
+                    // ==========================================
+                    // ส่วนที่อัปเดต: ระบบคลิกเพื่อแสดงไฟนีออน ซูม และเปิดข้อมูล
+                    // ==========================================
+                    poly.on('click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         
-                        // ซูมเข้าหาเส้นทางที่คลิก
-                        map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+                        // A. ล้างเอฟเฟกต์ไฟนีออนและลดขนาดเส้นอื่นๆ บนแผนที่กลับเป็นค่าเริ่มต้น
+                        map.eachLayer((layer) => {
+                            if (layer instanceof L.Polyline && layer.options.className === 'route-path') {
+                                layer.setStyle({ weight: 6 }); // คืนขนาดเส้นกลับเป็น 6 เท่าเดิม
+                                if (layer.getElement()) {
+                                    layer.getElement().classList.remove('neon-active');
+                                }
+                            }
+                        });
 
+                        // B. เพิ่มขนาดและเปิดแสงนีออนให้เส้นที่กำลังคลิก
+                        this.setStyle({ weight: 12 }); // ขยายขนาดเส้นให้หนาและเด่นขึ้น
+                        if (this.getElement()) {
+                            this.getElement().style.color = routeColor; // สั่งให้สีแสงนีออนตรงกับสีเส้น
+                            this.getElement().classList.add('neon-active');
+                        }
+
+                        // C. ดึงเส้นนี้ขึ้นมาไว้ชั้นบนสุด จะได้ไม่โดนเส้นอื่นทับความสว่าง
+                        this.bringToFront();
+                        
+                        // D. (โค้ดเดิม) ซูมเข้าหาเส้นทางที่คลิก
+                        map.fitBounds(this.getBounds(), { padding: [50, 50] });
+
+                        // E. (โค้ดเดิม) ตรวจสอบสิทธิ์เพื่อเปิด Popup แก้ไข หรือ ดูข้อมูล
                         if (isAdmin) promptAdminEdit(staff);
                         else showDetail(staff);
                     });
