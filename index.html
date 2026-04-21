@@ -782,23 +782,24 @@
 
         // ฟังก์ชันสำหรับดึงข้อมูลพนักงานเดิมมาเติมในฟอร์ม
         function autoFillStaff(staffName) {
-            // ค้นหาข้อมูลพนักงานจากตัวแปร global ที่เราโหลดมาตอนเริ่มเว็บ (เช่น allStaffData)
-            const staff = allStaffData.find(s => s.Name === staffName);
+            // ค้นหาข้อมูลพนักงาน (รองรับทั้ง Key พิมพ์เล็กและพิมพ์ใหญ่)
+            const staff = (allStaffData || []).find(s => s.Name === staffName || s.name === staffName);
             if (staff) {
-                document.getElementById('sw-p').value = staff.Position || '';
-                document.getElementById('sw-u1').value = staff.PhotoUrl || '';
-                document.getElementById('sw-c').value = staff.Color || '#2d6a4f';
+                document.getElementById('sw-p').value = staff.Position || staff.pos || '';
                 
-                // แจ้งเตือนเล็กน้อยว่าดึงข้อมูลมาแล้ว
-                Swal.showValidationMessage(`ดึงข้อมูลของคุณ ${staff.Name} มาเรียบร้อยแล้ว`);
+                // ดึงลิงก์รูปเดิมมาใส่ในช่อง
+                document.getElementById('sw-u1').value = staff.PhotoUrl || staff.photoUrl || ''; 
+                document.getElementById('sw-u2').value = staff.RoutePhoto || staff.routePhoto || ''; 
+                document.getElementById('sw-c').value = staff.Color || staff.color || '#2d6a4f';
+                
+                // แจ้งเตือนว่าดึงข้อมูลสำเร็จ
+                Swal.showValidationMessage(`ดึงข้อมูลของคุณ ${staffName} มาเรียบร้อยแล้ว`);
                 setTimeout(() => Swal.resetValidationMessage(), 2000);
             }
         }
 
-        // แก้ไข Popup เพิ่มพนักงานใหม่
-       async function handleAddNewRoute(coords) {
-            // สร้างรายการชื่อพนักงานที่ไม่ซ้ำกันเพื่อทำเป็นตัวเลือก (Datalist)
-            const uniqueNames = [...new Set((allStaffData || []).map(s => s.Name))];
+        async function handleAddNewRoute(coords) {
+            const uniqueNames = [...new Set((allStaffData || []).map(s => s.Name || s.name))];
             const nameOptions = uniqueNames.map(name => `<option value="${name}">`).join('');
 
             const { value: formValues } = await Swal.fire({
@@ -808,9 +809,7 @@
                         <div class="p-3 mb-3 bg-light rounded border border-primary border-dashed">
                             <label class="form-label small fw-bold text-primary mb-1"><i class="fas fa-search me-1"></i>ค้นหาพนักงานเดิม (ถ้ามี)</label>
                             <input type="text" id="staff-search" class="form-control form-control-sm" list="staff-list" placeholder="พิมพ์ชื่อเพื่อค้นหา..." onchange="autoFillStaff(this.value)">
-                            <datalist id="staff-list">
-                                ${nameOptions}
-                            </datalist>
+                            <datalist id="staff-list">${nameOptions}</datalist>
                             <div class="form-text" style="font-size: 0.75rem;">*หากเป็นพนักงานใหม่ ให้ข้ามส่วนนี้และกรอกข้อมูลด้านล่างได้เลย</div>
                         </div>
 
@@ -839,39 +838,38 @@
                         </div>
 
                         <div class="p-3 bg-white rounded border shadow-sm border-top border-3 border-warning">
-                            <h6 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fas fa-file-upload me-2"></i>รูปภาพ (ดึงมาให้อัตโนมัติถ้ามีข้อมูลเดิม)</h6>
+                            <h6 class="text-warning fw-bold border-bottom pb-2 mb-3"><i class="fas fa-file-upload me-2"></i>จัดการรูปภาพ</h6>
+                            
                             <div class="mb-3">
                                 <label class="form-label small fw-bold text-secondary mb-1">1. รูปประจำตัว</label>
-                                <input type="text" id="sw-u1" class="form-control form-control-sm bg-light text-muted" placeholder="ลิงก์รูปจะปรากฏที่นี่..." readonly>
-                                <div class="form-text small">หากต้องการเปลี่ยนรูปใหม่ ให้ใช้ปุ่มแก้ไขข้อมูลภายหลัง</div>
+                                <div class="input-group input-group-sm mb-1">
+                                    <input type="file" id="sw-f1" class="form-control" accept="image/*">
+                                    <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f1', 'profile', 'sw-u1')"><i class="fas fa-upload"></i> อัปโหลด</button>
+                                </div>
+                                <input type="text" id="sw-u1" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูปประจำตัว (หรือระบบจะดึงมาให้อัตโนมัติ)..." readonly>
                             </div>
+                            
                             <div>
-                                <label class="form-label small fw-bold text-secondary mb-1">2. รูปสภาพพื้นที่หน้างาน (อัปโหลดใหม่สำหรับเส้นทางนี้)</label>
+                                <label class="form-label small fw-bold text-secondary mb-1">2. รูปสภาพพื้นที่หน้างาน</label>
                                 <div class="input-group input-group-sm mb-1">
                                     <input type="file" id="sw-f2" class="form-control" accept="image/*">
                                     <button class="btn btn-primary" type="button" onclick="uploadSingleImage('sw-f2', 'route', 'sw-u2')"><i class="fas fa-upload"></i> อัปโหลด</button>
                                 </div>
-                                <input type="text" id="sw-u2" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูปเส้นทาง..." readonly>
+                                <input type="text" id="sw-u2" class="form-control form-control-sm bg-light text-muted" placeholder="รอลิงก์รูปหน้างาน (หรือระบบจะดึงมาให้อัตโนมัติ)..." readonly>
                             </div>
                         </div>
-                    </div>
+                        </div>
                 `,
                 width: '500px',
                 background: '#f8f9fa',
                 customClass: { popup: 'rounded-4' },
-                
-                // ==========================================
-                // ส่วนที่เพิ่มใหม่: จัดการปุ่มด้านล่าง Popup
-                // ==========================================
-                showCancelButton: true, // เปิดให้แสดงปุ่มยกเลิก
-                confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกข้อมูล', // เปลี่ยนข้อความปุ่มตกลง
-                cancelButtonText: 'ยกเลิก', // กำหนดข้อความปุ่มยกเลิก
-                confirmButtonColor: '#2d6a4f', // สีปุ่มบันทึก (สีเขียวเข้ม)
-                cancelButtonColor: '#6c757d', // สีปุ่มยกเลิก (สีเทา)
-                // ==========================================
+                showCancelButton: true, 
+                confirmButtonText: '<i class="fas fa-save me-1"></i> บันทึกข้อมูล', 
+                cancelButtonText: 'ยกเลิก', 
+                confirmButtonColor: '#2d6a4f', 
+                cancelButtonColor: '#6c757d',
 
                 didOpen: () => {
-                    // เชื่อมโยงค่าจาก Search ไปยังช่องชื่อหลัก
                     const searchInput = document.getElementById('staff-search');
                     const nameInput = document.getElementById('sw-n');
                     searchInput.addEventListener('input', (e) => {
@@ -893,12 +891,9 @@
                 }
             });
 
-            // ตรวจสอบการกดปุ่มของผู้ใช้
             if (formValues) {
-                // ถ้ากด "บันทึกข้อมูล" จะทำการบันทึก
                 executeSave(formValues, "addNewStaff");
             } else {
-                // ถ้ากด "ยกเลิก" หรือคลิกพื้นที่ว่างข้างนอก จะลบเส้นที่เพิ่งวาดทิ้งไป
                 drawnItems.clearLayers();
             }
         }
