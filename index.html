@@ -140,6 +140,21 @@
             display: inline-block;
             width: 100%;
         }
+        /* ==========================================
+           ปรับแต่ง Tooltip ของ Leaflet ให้เป็นแบบ Modern
+           ========================================== */
+        .leaflet-tooltip.modern-card-tooltip {
+            background: transparent !important; /* ลบพื้นหลังเดิม */
+            border: none !important; /* ลบเส้นขอบเดิม */
+            box-shadow: none !important; /* ลบเงาเดิม */
+            padding: 0 !important; /* ลบระยะห่างเดิม */
+        }
+        
+        /* ซ่อนลูกศร (ติ่งชี้) ของ Tooltip เพื่อให้การ์ดดูลอยตัวสวยงาม */
+        .leaflet-tooltip.modern-card-tooltip::before,
+        .leaflet-tooltip.modern-card-tooltip::after {
+            display: none !important; 
+        }
         /* --- Admin Menu Buttons --- */
         .admin-menu-btn {
             display: flex; align-items: center; justify-content: start;
@@ -311,29 +326,44 @@
                         weight: 6, 
                         opacity: 0.8 
                     }).addTo(map);
-                    
-                    // --- เพิ่มระบบ Tooltip เมื่อเอาเมาส์ชี้ ---
-                    const tooltipHTML = `
-                        <div class="tooltip-card">
-                            <div class="tooltip-line mb-1">
-                                <i class="fas fa-user-circle me-2" style="color: var(--primary-color); font-size: 1rem; width: 16px; text-align: center;"></i>
-                                <span class="tooltip-text fw-bold text-dark" style="font-size: 0.95rem;">
-                                    ${staff.Name || 'ไม่ระบุชื่อ'}
-                                </span>
-                            </div>
-                            
-                            <div class="tooltip-line">
-                                <i class="fas fa-map-marker-alt text-danger me-2" style="font-size: 0.9rem; width: 16px; text-align: center;"></i>
-                                <span class="tooltip-text text-secondary" style="font-size: 0.85rem;">
-                                    ${staff.RouteDetail || '-'}
-                                </span>
-                            </div>
-                        </div>
-                    `;
 
+                        // ==========================================
+                        // ส่วนที่ดัดแปลง: Tooltip รูปแบบ Modern Card (ขอบมน ดูสะอาดตา)
+                        // ==========================================
+                        const defaultAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                        const photoUrl = staff.Photo || staff.photo || staff.PhotoUrl || staff.รูปภาพ || defaultAvatar;
+                        const staffName = staff.Name || staff.name || "ไม่ระบุชื่อ";
+                        const routeColor = staff.Color || staff.color || '#3388ff';
+                        const routeDetail = staff.RouteDetail || staff.detail || staff.รายละเอียด || "ไม่ได้ระบุเส้นทาง";
+
+                        // ออกแบบโครงสร้าง HTML & Inline CSS สไตล์ Modern UI
+                        const tooltipHTML = `
+                            <div style="background: #ffffff; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 15px; text-align: center; min-width: 160px; border: 1px solid rgba(0,0,0,0.05);">
+                                
+                                <div style="position: relative; display: inline-block; margin-bottom: 8px;">
+                                    <img src="${photoUrl}" 
+                                         style="width: 65px; height: 65px; object-fit: cover; border-radius: 50%; border: 3px solid ${routeColor}; padding: 2px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                </div>
+                                
+                                <div style="font-size: 15px; font-weight: bold; color: #1e293b; margin-bottom: 4px;">
+                                    ${staffName}
+                                </div>
+                                
+                                <div style="height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); margin: 8px 0;"></div>
+                                
+                                <div style="font-size: 12px; color: #64748b; max-width: 170px; white-space: normal; line-height: 1.5; text-align: center; margin: 0 auto;">
+                                    <div style="display: inline-block; background: #f8f9fa; border: 1px solid #e9ecef; color: ${routeColor}; padding: 2px 8px; border-radius: 20px; margin-bottom: 5px; font-size: 10px; font-weight: bold;">
+                                        <i class="fas fa-map-marker-alt"></i> พื้นที่รับผิดชอบ
+                                    </div>
+                                    <br>
+                                    ${routeDetail}
+                                </div>
+                                
+                            </div>
+                        `;
                     poly.bindTooltip(tooltipHTML, {
                         sticky: true,          // ให้ Popup ขยับตามลูกศรเมาส์
-                        className: 'custom-tooltip', // เรียกใช้ CSS ที่เราตกแต่งไว้
+                        className: 'modern-card-tooltip', // เรียกใช้ CSS ที่เราตกแต่งไว้
                         direction: 'top',      // ให้อยู่ด้านบนของเมาส์
                         offset: [0, -10]       // ขยับให้ห่างจากปลายเมาส์เล็กน้อย
                     });
